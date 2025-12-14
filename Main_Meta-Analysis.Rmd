@@ -1,0 +1,131 @@
+---
+title: "Proj. 79"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 4)
+```
+
+
+
+
+```{r}
+#---------------
+# Packages and data 
+#---------------
+library(metafor)
+library(tidyverse)
+library(readxl)
+vegetation_df <- read_excel("meta_analysis_data.xlsx", sheet=2)
+aureus_df <- read_excel("meta_analysis_data.xlsx", sheet=1)
+head(vegetation_df)
+head(aureus_df)
+```
+
+
+
+# Vegetation Analysis
+
+```{r}
+#---------------
+# Clean
+#--------------- 
+vegetation_df <- vegetation_df %>% 
+  select("Author", "Year", "Stroke Type", "Sample Size", "Stroke", 
+         "Stroke with vegetation", "No Stroke", "No Stroke with vegetation",
+         "Log(OR)", "SE", "...13")
+
+# remove all rows except the continuous studies w/ log(OR) data 
+vegetation_df <- vegetation_df[(vegetation_df$...13=="continuous"), ]
+head(vegetation_df)
+
+
+
+#---------------
+# Find Averaged ORs
+#--------------- 
+res1 <- rma(yi = `Log(OR)`, sei = SE, data=vegetation_df)
+res1
+
+#---------------
+# Back Transform Results 
+#--------------- 
+predict(res1, transf=exp, digits=2)
+
+
+#---------------
+# Forest Plot
+#--------------- 
+forest(res1, atransf=exp, at=log(c(0.25, 0.5, 1, 2)), xlim=c(-3, 2), 
+       showweights = T,
+       header="Author(s)", 
+       slab=as.character(vegetation_df$Author), 
+       mlab=" ", 
+       shade=TRUE,
+       xlab="Odds Ratio", 
+       main="Forest Plot of Odds Ratio for Vegetation Size")
+```
+
+
+
+# S. Aureus Analysis 
+
+```{r}
+#---------------
+# Clean
+#--------------- 
+aureus_df$a <- aureus_df$`Stroke with S aureus`
+aureus_df$b <- aureus_df$Stroke - aureus_df$`Stroke with S aureus`
+aureus_df$c <- aureus_df$`No Stroke with S aureus`
+aureus_df$d <- aureus_df$`No Stroke`- aureus_df$`No Stroke with S aureus`
+
+
+
+#---------------
+# Random Effects Model
+#--------------- 
+aureus_dat <- escalc(measure="OR", ai=`a`, bi=`b`, ci=`c`, di=`d`, data=aureus_df)
+# View(aureus_dat)
+
+res2 <- rma(yi, vi, data=aureus_dat)
+res2
+
+
+#---------------
+# Back Transform Results 
+#--------------- 
+predict(res2, transf=exp, digits=2)
+
+
+#---------------
+# Forest Plot
+#--------------- 
+forest(res2, atransf=exp, at=log(c(.25, 1, 2, 6)), 
+       xlim=c(-13, 6),
+       ilab=cbind(a, b, c, d), ilab.xpos=c(-8, -7, -5.5, -4), 
+       showweights = T,
+       header="Author(s)", 
+       slab=as.character(aureus_dat$Author),
+       shade="zebra", 
+       main="Forest Plot of Odds Ratio for S. Aureus",
+       xlab="Odds Ratio",
+       cex=0.8) 
+
+y_range <- par("usr")[3:4]
+y_top <- y_range[2] + 0.5 
+
+text(c(-9.5, -8, -7, -5.5, -4), y_top - 2, c("S. Aureus", "+", "-", "+", "-"), font=1)
+text(c(-7.5, -4.75), y_top - 1, c("Stroke", "No Stroke"), font=2)
+
+```
+
